@@ -1,0 +1,33 @@
+{
+  "name": "autoflow-ai",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @autoflow/api",
+    "dev:web": "npm run dev -w @autoflow/web",
+    "dev:worker": "npm run dev -w @autoflow/worker",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:worker\"",
+    "build": "npm run build -w @autoflow/ui && npm run build -w @autoflow/types && npm run build -w @autoflow/api && npm run build -w @autoflow/web",
+    "db:generate": "npm run prisma:generate -w @autoflow/api",
+    "db:push": "npm run prisma:push -w @autoflow/api",
+    "db:migrate": "npm run prisma:migrate -w @autoflow/api",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "dependencies": {
+    "@nestjs/config": "^4.0.4"
+  }
+}

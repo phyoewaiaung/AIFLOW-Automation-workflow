@@ -1,0 +1,29 @@
+{
+  "name": "@autoflow/worker",
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "ts-node -r dotenv/config src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main",
+    "start:dev": "ts-node -r dotenv/config src/main.ts"
+  },
+  "dependencies": {
+    "@autoflow/configs": "*",
+    "dotenv": "^16.0.0",
+    "@autoflow/types": "*",
+    "@autoflow/utils": "*",
+    "@prisma/client": "^5.8.0",
+    "bullmq": "^5.1.0",
+    "ioredis": "^5.3.2",
+    "openai": "^4.24.1",
+    "reflect-metadata": "^0.2.1",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "prisma": "^5.8.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
