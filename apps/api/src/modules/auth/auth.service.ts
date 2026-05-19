@@ -115,18 +115,15 @@ export class AuthService {
       where: { id: userId },
       include: {
         memberships: {
-          include: {
-            organization: true,
-          },
+          include: { organization: true },
         },
       },
     });
-
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-
-    return user;
+    const { password, ...safeUser } = user;
+    return safeUser;
   }
 
   private generateToken(userId: string, email: string) {

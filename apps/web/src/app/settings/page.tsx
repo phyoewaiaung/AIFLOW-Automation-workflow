@@ -1,19 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/use-auth-store';
+import { users, organizations } from '@/lib/api';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { User, Building, Key, Trash2, Copy } from 'lucide-react';
+import { User, Building, Key, Trash2, Copy, Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, organization, isLoading, token, checkAuth, logout } = useAuthStore();
+  const { user, organization, isLoading, token, checkAuth, setUser, setOrganization } = useAuthStore();
+  const [userName, setUserName] = useState('');
+  const [orgName, setOrgName] = useState('');
+  const [savingUser, setSavingUser] = useState(false);
+  const [savingOrg, setSavingOrg] = useState(false);
+  const [userError, setUserError] = useState('');
+  const [orgError, setOrgError] = useState('');
+  const [userSuccess, setUserSuccess] = useState(false);
+  const [orgSuccess, setOrgSuccess] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -22,6 +30,43 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!isLoading && !token) router.push('/login');
   }, [isLoading, token, router]);
+
+  useEffect(() => {
+    if (user?.name) setUserName(user.name);
+    if (organization?.name) setOrgName(organization.name);
+  }, [user, organization]);
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    setSavingUser(true);
+    setUserError('');
+    setUserSuccess(false);
+    try {
+      await users.update(user.id, { name: userName });
+      setUser({ name: userName });
+      setUserSuccess(true);
+    } catch (err: any) {
+      setUserError(err.message || 'Failed to update profile');
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const handleSaveOrg = async () => {
+    if (!organization?.id) return;
+    setSavingOrg(true);
+    setOrgError('');
+    setOrgSuccess(false);
+    try {
+      await organizations.update(organization.id, { name: orgName });
+      setOrganization({ ...organization, name: orgName });
+      setOrgSuccess(true);
+    } catch (err: any) {
+      setOrgError(err.message || 'Failed to update organization');
+    } finally {
+      setSavingOrg(false);
+    }
+  };
 
   if (isLoading || !token) {
     return (
@@ -58,14 +103,23 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Name</label>
-                  <Input defaultValue={user?.name || ''} className="mt-1" />
+                  <Input
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Email</label>
                   <Input defaultValue={user?.email || ''} className="mt-1" disabled />
                 </div>
               </div>
-              <Button>Save Changes</Button>
+              {userError && <p className="text-sm text-destructive">{userError}</p>}
+              {userSuccess && <p className="text-sm text-green-500">Profile updated successfully</p>}
+              <Button onClick={handleSaveProfile} disabled={savingUser}>
+                {savingUser ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Save Changes
+              </Button>
             </CardContent>
           </Card>
 
@@ -79,9 +133,18 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm text-muted-foreground">Organization Name</label>
-                <Input defaultValue={organization?.name || ''} className="mt-1" />
+                <Input
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  className="mt-1"
+                />
               </div>
-              <Button>Save Changes</Button>
+              {orgError && <p className="text-sm text-destructive">{orgError}</p>}
+              {orgSuccess && <p className="text-sm text-green-500">Organization updated successfully</p>}
+              <Button onClick={handleSaveOrg} disabled={savingOrg}>
+                {savingOrg ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Save Changes
+              </Button>
             </CardContent>
           </Card>
 

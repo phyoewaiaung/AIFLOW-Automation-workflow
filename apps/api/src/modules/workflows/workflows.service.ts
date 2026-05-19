@@ -297,32 +297,30 @@ export class WorkflowsService {
   ) {
     const workflow = await this.findById(workflowId, userId);
 
-    await this.prisma.$transaction([
-      this.prisma.workflowNode.deleteMany({ where: { workflowId } }),
-      this.prisma.workflowEdge.deleteMany({ where: { workflowId } }),
-    ]);
-
-    await this.prisma.workflowNode.createMany({
-      data: data.nodes.map((node) => ({
-        id: node.id,
-        workflowId,
-        type: node.type,
-        positionX: node.positionX,
-        positionY: node.positionY,
-        data: node.data as any,
-      })),
-    });
-
-    await this.prisma.workflowEdge.createMany({
-      data: data.edges.map((edge) => ({
-        id: edge.id,
-        workflowId,
-        sourceId: edge.sourceId,
-        targetId: edge.targetId,
-        sourceHandle: edge.sourceHandle,
-        targetHandle: edge.targetHandle,
-        data: edge.data as any || {},
-      })),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workflowNode.deleteMany({ where: { workflowId } });
+      await tx.workflowEdge.deleteMany({ where: { workflowId } });
+      await tx.workflowNode.createMany({
+        data: data.nodes.map((node) => ({
+          id: node.id,
+          workflowId,
+          type: node.type,
+          positionX: node.positionX,
+          positionY: node.positionY,
+          data: node.data as any,
+        })),
+      });
+      await tx.workflowEdge.createMany({
+        data: data.edges.map((edge) => ({
+          id: edge.id,
+          workflowId,
+          sourceId: edge.sourceId,
+          targetId: edge.targetId,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+          data: (edge.data as any) || {},
+        })),
+      });
     });
 
     return this.findById(workflowId, userId);

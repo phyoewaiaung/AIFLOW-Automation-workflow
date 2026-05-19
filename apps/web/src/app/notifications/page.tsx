@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/use-auth-store';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bell, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Bell, Loader2 } from 'lucide-react';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -21,21 +21,6 @@ export default function NotificationsPage() {
       router.push('/login');
     }
   }, [isLoading, token, router]);
-
-  const notifications = [
-    { id: 1, type: 'success', message: 'Workflow "Lead Processing" completed successfully', time: '5 min ago' },
-    { id: 2, type: 'error', message: 'Workflow "Email Sync" failed - connection timeout', time: '1 hour ago' },
-    { id: 3, type: 'info', message: 'New execution started for "AI Classification"', time: '2 hours ago' },
-    { id: 4, type: 'success', message: 'Agent "Sales Bot" responded to 50 leads', time: '3 hours ago' },
-  ];
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'success': return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'error': return <XCircle className="w-5 h-5 text-red-500" />;
-      default: return <AlertCircle className="w-5 h-5 text-blue-500" />;
-    }
-  };
 
   if (isLoading || !token) {
     return (
@@ -65,22 +50,12 @@ export default function NotificationsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {notifications.map((notification) => (
-                  <div 
-                    key={notification.id}
-                    className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    {getIcon(notification.type)}
-                    <div className="flex-1">
-                      <p className="text-sm">{notification.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {notification.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Bell className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No notifications yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Notifications will appear here when your workflows run
+                </p>
               </div>
             </CardContent>
           </Card>

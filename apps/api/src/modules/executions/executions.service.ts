@@ -155,6 +155,14 @@ export class ExecutionsService {
       throw new ForbiddenException('Cannot cancel execution in current status');
     }
 
+    const jobs = await this.executionQueue.getJobs(['waiting', 'delayed', 'active']);
+    for (const job of jobs) {
+      if (job.data.executionId === id) {
+        await job.remove();
+        break;
+      }
+    }
+
     return this.prisma.execution.update({
       where: { id },
       data: { status: 'CANCELLED', completedAt: new Date() },

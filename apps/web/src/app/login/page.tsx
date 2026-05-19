@@ -28,7 +28,7 @@ export default function LoginPage() {
 
     try {
       const { user, token } = isLogin
-        ? await auth.login(form)
+        ? await auth.login({ email: form.email, password: form.password })
         : await auth.register(form);
 
       setAuth(user, token, user.memberships?.[0]?.organization);

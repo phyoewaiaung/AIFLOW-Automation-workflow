@@ -33,6 +33,12 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
   console.log(`Processing execution ${executionId} for workflow ${workflowId}`);
 
   try {
+    const existing = await prisma.execution.findUnique({ where: { id: executionId } });
+    if (existing?.status === 'CANCELLED') {
+      console.log(`Execution ${executionId} was cancelled, skipping`);
+      return;
+    }
+
     await prisma.execution.update({
       where: { id: executionId },
       data: { status: 'RUNNING' },

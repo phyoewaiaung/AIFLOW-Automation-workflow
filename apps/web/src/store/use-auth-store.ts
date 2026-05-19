@@ -22,6 +22,7 @@ interface AuthState {
   setAuth: (user: User, token: string, organization?: Organization) => void;
   logout: () => void;
   setOrganization: (org: Organization) => void;
+  setUser: (user: Partial<User>) => void;
   checkAuth: () => Promise<void>;
 }
 
@@ -42,6 +43,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setOrganization: (org) => set({ organization: org }),
+
+  setUser: (partial) => set((state) => ({ user: state.user ? { ...state.user, ...partial } : null })),
 
   checkAuth: async () => {
     const token = api.getToken();

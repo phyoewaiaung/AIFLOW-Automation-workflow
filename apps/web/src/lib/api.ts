@@ -136,6 +136,11 @@ export const integrations = {
   delete: (id: string) => api.delete<any>(`/integrations/${id}`),
 };
 
+export const users = {
+  update: (id: string, data: { name?: string; avatar?: string }) =>
+    api.patch<any>(`/users/${id}`, data),
+};
+
 export const analytics = {
   overview: (organizationId: string) =>
     api.get<any>(`/analytics/overview?organizationId=${organizationId}`),

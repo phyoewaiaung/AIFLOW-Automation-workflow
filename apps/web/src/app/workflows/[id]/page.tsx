@@ -1,18 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/store/use-auth-store';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
-import { WorkflowCanvas } from '@/components/workflow/workflow-canvas';
-import { Save, Play, Settings, ArrowLeft } from 'lucide-react';
+import { WorkflowCanvas, WorkflowCanvasHandle } from '@/components/workflow/workflow-canvas';
+import { useWorkflow, useSaveWorkflowNodes } from '@/hooks/use-api';
+import { Save, Play, Settings, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function WorkflowEditPage() {
   const router = useRouter();
   const params = useParams();
   const { isLoading, token, checkAuth } = useAuthStore();
   const [workflowName, setWorkflowName] = useState('New Workflow');
+  const canvasRef = useRef<WorkflowCanvasHandle>(null);
+  const saveWorkflow = useSaveWorkflowNodes();
 
   useEffect(() => {
     checkAuth();
@@ -24,6 +27,41 @@ export default function WorkflowEditPage() {
     }
   }, [isLoading, token, router]);
 
+  const workflowId = params.id as string;
+  const isNew = workflowId === 'new';
+
+  const { data: workflow, isLoading: workflowLoading } = useWorkflow(isNew ? '' : workflowId);
+
+  useEffect(() => {
+    if (workflow) {
+      setWorkflowName(workflow.name);
+    }
+  }, [workflow]);
+
+  const handleSave = useCallback(async () => {
+    if (!canvasRef.current || isNew) return;
+    const { nodes, edges } = canvasRef.current.getData();
+    await saveWorkflow.mutateAsync({
+      id: workflowId,
+      data: {
+        nodes: nodes.map((n: any) => ({
+          id: n.id,
+          type: n.data?.type || n.type,
+          positionX: n.position.x,
+          positionY: n.position.y,
+          data: n.data,
+        })),
+        edges: edges.map((e: any) => ({
+          id: e.id,
+          sourceId: e.source,
+          targetId: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        })),
+      },
+    });
+  }, [workflowId, isNew, saveWorkflow]);
+
   if (isLoading || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -31,9 +69,6 @@ export default function WorkflowEditPage() {
       </div>
     );
   }
-
-  const workflowId = params.id as string;
-  const isNew = workflowId === 'new';
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,8 +101,12 @@ export default function WorkflowEditPage() {
               <Play className="w-4 h-4 mr-2" />
               Test
             </Button>
-            <Button size="sm">
-              <Save className="w-4 h-4 mr-2" />
+            <Button size="sm" onClick={handleSave} disabled={saveWorkflow.isPending || isNew}>
+              {saveWorkflow.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
               Save
             </Button>
           </div>
@@ -75,7 +114,29 @@ export default function WorkflowEditPage() {
       </div>
 
       <div className="pt-28 h-screen">
-        <WorkflowCanvas workflowId={isNew ? undefined : workflowId} />
+        {workflowLoading && !isNew ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <WorkflowCanvas
+            ref={canvasRef}
+            workflowId={isNew ? undefined : workflowId}
+            initialNodes={workflow?.nodes?.map((n: any) => ({
+              id: n.id,
+              type: 'custom',
+              position: { x: n.positionX, y: n.positionY },
+              data: n.data,
+            }))}
+            initialEdges={workflow?.edges?.map((e: any) => ({
+              id: e.id,
+              source: e.sourceId,
+              target: e.targetId,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle,
+            }))}
+          />
+        )}
       </div>
     </div>
   );

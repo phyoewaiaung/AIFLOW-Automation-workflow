@@ -1,18 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/use-auth-store';
+import { users } from '@/lib/api';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { User, Mail, Building } from 'lucide-react';
+import { User, Building, Loader2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { isLoading, token, user, organization, checkAuth } = useAuthStore();
+  const { isLoading, token, user, organization, checkAuth, setUser } = useAuthStore();
+  const [userName, setUserName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -23,6 +28,26 @@ export default function ProfilePage() {
       router.push('/login');
     }
   }, [isLoading, token, router]);
+
+  useEffect(() => {
+    if (user?.name) setUserName(user.name);
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setSaving(true);
+    setError('');
+    setSuccess(false);
+    try {
+      await users.update(user.id, { name: userName });
+      setUser({ name: userName });
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (isLoading || !token) {
     return (
@@ -62,22 +87,29 @@ export default function ProfilePage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Name</label>
-                <Input 
-                  defaultValue={user?.name || ''} 
+                <Input
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
                   placeholder="Your name"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>
-                <Input 
-                  defaultValue={user?.email || ''} 
+                <Input
+                  defaultValue={user?.email || ''}
                   disabled
                   className="bg-muted"
                 />
               </div>
 
-              <Button>Save Changes</Button>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              {success && <p className="text-sm text-green-500">Profile updated successfully</p>}
+
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Save Changes
+              </Button>
             </CardContent>
           </Card>
 

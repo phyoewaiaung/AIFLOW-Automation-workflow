@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class AnalyticsService {
     });
 
     if (!membership) {
-      throw new Error('Access denied');
+      throw new ForbiddenException('Access denied');
     }
 
     const [totalWorkflows, activeWorkflows, executions, recentExecutions] =
@@ -59,7 +59,7 @@ export class AnalyticsService {
     });
 
     if (!membership) {
-      throw new Error('Access denied');
+      throw new ForbiddenException('Access denied');
     }
 
     const where: any = { organizationId };
@@ -96,7 +96,7 @@ export class AnalyticsService {
     });
 
     if (!membership) {
-      throw new Error('Access denied');
+      throw new ForbiddenException('Access denied');
     }
 
     const workflows = await this.prisma.workflow.findMany({
