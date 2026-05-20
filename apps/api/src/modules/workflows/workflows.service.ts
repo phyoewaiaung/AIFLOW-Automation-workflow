@@ -133,7 +133,13 @@ export class WorkflowsService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    await this.prisma.workflow.delete({ where: { id } });
+    await this.prisma.$transaction([
+      this.prisma.executionLog.deleteMany({ where: { execution: { workflowId: id } } }),
+      this.prisma.execution.deleteMany({ where: { workflowId: id } }),
+      this.prisma.workflowNode.deleteMany({ where: { workflowId: id } }),
+      this.prisma.workflowEdge.deleteMany({ where: { workflowId: id } }),
+      this.prisma.workflow.delete({ where: { id } }),
+    ]);
     return { success: true };
   }
 

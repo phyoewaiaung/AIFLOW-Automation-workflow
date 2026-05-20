@@ -1,5 +1,3 @@
-'use client';
-
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { Zap, Clock, Bot, Mail, MessageSquare, Globe, Code, GitBranch } from 'lucide-react';
@@ -10,6 +8,7 @@ interface CustomNodeData {
 }
 
 const nodeIcons: Record<string, React.ElementType> = {
+  trigger: Zap,
   webhook: Zap,
   schedule: Clock,
   'ai-agent': Bot,
@@ -21,51 +20,57 @@ const nodeIcons: Record<string, React.ElementType> = {
   condition: GitBranch,
 };
 
-const nodeColors: Record<string, string> = {
-  webhook: 'bg-blue-500',
-  schedule: 'bg-purple-500',
-  'ai-agent': 'bg-emerald-500',
-  'ai-classify': 'bg-emerald-500',
-  'ai-email': 'bg-emerald-500',
-  http: 'bg-orange-500',
-  email: 'bg-cyan-500',
-  slack: 'bg-pink-500',
-  condition: 'bg-yellow-500',
+const nodeStyles: Record<string, { border: string; badge: string; iconColor: string }> = {
+  webhook: { border: 'border-blue-500/50', badge: 'bg-blue-500', iconColor: 'text-blue-400' },
+  'trigger-webhook': { border: 'border-blue-500/50', badge: 'bg-blue-500', iconColor: 'text-blue-400' },
+  schedule: { border: 'border-purple-500/50', badge: 'bg-purple-500', iconColor: 'text-purple-400' },
+  'trigger-schedule': { border: 'border-purple-500/50', badge: 'bg-purple-500', iconColor: 'text-purple-400' },
+  'ai-agent': { border: 'border-emerald-500/50', badge: 'bg-emerald-500', iconColor: 'text-emerald-400' },
+  'ai-classify': { border: 'border-emerald-500/50', badge: 'bg-emerald-500', iconColor: 'text-emerald-400' },
+  'ai-email-generator': { border: 'border-emerald-500/50', badge: 'bg-emerald-500', iconColor: 'text-emerald-400' },
+  'http-request': { border: 'border-orange-500/50', badge: 'bg-orange-500', iconColor: 'text-orange-400' },
+  http: { border: 'border-orange-500/50', badge: 'bg-orange-500', iconColor: 'text-orange-400' },
+  'send-email': { border: 'border-cyan-500/50', badge: 'bg-cyan-500', iconColor: 'text-cyan-400' },
+  email: { border: 'border-cyan-500/50', badge: 'bg-cyan-500', iconColor: 'text-cyan-400' },
+  'slack-message': { border: 'border-pink-500/50', badge: 'bg-pink-500', iconColor: 'text-pink-400' },
+  slack: { border: 'border-pink-500/50', badge: 'bg-pink-500', iconColor: 'text-pink-400' },
+  condition: { border: 'border-yellow-500/50', badge: 'bg-yellow-500', iconColor: 'text-yellow-400' },
 };
+
+const defaultStyle = { border: 'border-border', badge: 'bg-muted', iconColor: 'text-foreground' };
 
 export const WorkflowNode = memo(({ data, selected }: NodeProps) => {
   const nodeData = data as CustomNodeData;
   const Icon = nodeIcons[nodeData.type] || Code;
-  const colorClass = nodeColors[nodeData.type] || 'bg-gray-500';
+  const s = nodeStyles[nodeData.type] || defaultStyle;
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 transition-all ${
-        selected
-          ? 'border-primary bg-primary/10'
-          : 'border-border bg-card hover:border-primary/50'
-      }`}
+      className={`relative px-4 py-3 rounded-xl border-2 shadow-lg transition-shadow ${selected
+        ? `${s.border} bg-muted ring-2 ring-primary/30`
+        : `${s.border} bg-muted hover:shadow-xl`
+        }`}
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-3 !h-3 !bg-muted !border-2 !border-background"
+        className="!w-3 !h-3 !bg-border !border-2 !border-background"
       />
 
       <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-md ${colorClass} flex items-center justify-center`}>
-          <Icon className="w-4 h-4 text-white" />
+        <div className={`w-9 h-9 rounded-lg ${s.badge} flex items-center justify-center shadow-sm`}>
+          <Icon className="w-5 h-5 text-white" />
         </div>
         <div>
-          <p className="font-medium text-sm">{nodeData.label}</p>
-          <p className="text-xs text-muted-foreground">{nodeData.type}</p>
+          <p className="font-semibold text-sm text-card-foreground">{nodeData.label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{nodeData.type}</p>
         </div>
       </div>
 
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-3 !h-3 !bg-muted !border-2 !border-background"
+        className="!w-3 !h-3 !bg-border !border-2 !border-background"
       />
     </div>
   );

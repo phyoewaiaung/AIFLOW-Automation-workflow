@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkflowsService } from './workflows.service';
+import { ExecutionsService } from '../executions/executions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
@@ -20,7 +21,10 @@ import { Public } from '../../common/decorators/public.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('workflows')
 export class WorkflowsController {
-  constructor(private readonly workflowsService: WorkflowsService) {}
+  constructor(
+    private readonly workflowsService: WorkflowsService,
+    private readonly executionsService: ExecutionsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List workflows' })
@@ -142,6 +146,7 @@ export class WorkflowsController {
     @Param('workflowId') workflowId: string,
     @Body() data: any
   ) {
-    return { received: true, workflowId, data };
+    const execution = await this.executionsService.startExecutionFromWebhook(workflowId, data);
+    return { received: true, workflowId, executionId: execution.id, status: execution.status };
   }
 }

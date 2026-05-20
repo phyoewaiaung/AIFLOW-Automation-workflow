@@ -3,19 +3,22 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/store/use-auth-store';
+import { useToastStore } from '@/store/use-toast-store';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { WorkflowCanvas, WorkflowCanvasHandle } from '@/components/workflow/workflow-canvas';
-import { useWorkflow, useSaveWorkflowNodes } from '@/hooks/use-api';
-import { Save, Play, Settings, ArrowLeft, Loader2 } from 'lucide-react';
+import { useWorkflow, useSaveWorkflowNodes, useAgents, useTriggerExecution } from '@/hooks/use-api';
+import { Save, Play, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function WorkflowEditPage() {
   const router = useRouter();
   const params = useParams();
-  const { isLoading, token, checkAuth } = useAuthStore();
+  const { isLoading, token, checkAuth, organization } = useAuthStore();
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const canvasRef = useRef<WorkflowCanvasHandle>(null);
   const saveWorkflow = useSaveWorkflowNodes();
+  const triggerExecution = useTriggerExecution();
+  const addToast = useToastStore((s) => s.addToast);
 
   useEffect(() => {
     checkAuth();
@@ -31,6 +34,7 @@ export default function WorkflowEditPage() {
   const isNew = workflowId === 'new';
 
   const { data: workflow, isLoading: workflowLoading } = useWorkflow(isNew ? '' : workflowId);
+  const { data: agentsList } = useAgents(organization?.id || '');
 
   useEffect(() => {
     if (workflow) {
@@ -60,7 +64,16 @@ export default function WorkflowEditPage() {
         })),
       },
     });
-  }, [workflowId, isNew, saveWorkflow]);
+    addToast('Workflow saved', 'success');
+    router.push('/workflows');
+  }, [workflowId, isNew, saveWorkflow, addToast, router]);
+
+  const handleTest = useCallback(async () => {
+    if (isNew) return;
+    const result = await triggerExecution.mutateAsync({ workflowId, data: { test: true, source: 'manual' } });
+    addToast('Execution started', 'info');
+    router.push(`/executions/${result.id}`);
+  }, [workflowId, isNew, triggerExecution, addToast, router]);
 
   if (isLoading || !token) {
     return (
@@ -93,12 +106,12 @@ export default function WorkflowEditPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Button>
-            <Button variant="outline" size="sm">
-              <Play className="w-4 h-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleTest} disabled={triggerExecution.isPending || isNew}>
+              {triggerExecution.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4 mr-2" />
+              )}
               Test
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saveWorkflow.isPending || isNew}>
@@ -122,6 +135,7 @@ export default function WorkflowEditPage() {
           <WorkflowCanvas
             ref={canvasRef}
             workflowId={isNew ? undefined : workflowId}
+            agents={agentsList?.map((a: any) => ({ id: a.id, name: a.name })) || []}
             initialNodes={workflow?.nodes?.map((n: any) => ({
               id: n.id,
               type: 'custom',
@@ -138,6 +152,7 @@ export default function WorkflowEditPage() {
           />
         )}
       </div>
+
     </div>
   );
 }

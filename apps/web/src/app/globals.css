@@ -43,7 +43,7 @@
 }
 
 .react-flow__node {
-  @apply rounded-lg border border-border bg-card shadow-sm;
+  @apply rounded-lg bg-muted shadow-sm;
 }
 
 .react-flow__node.selected {
@@ -65,6 +65,35 @@
 
 .react-flow__handle:hover {
   @apply bg-primary;
+}
+
+/* Controls (zoom in/out/fit) */
+.react-flow__controls {
+  @apply rounded-lg shadow-lg border border-border overflow-hidden !bg-muted;
+}
+
+.react-flow__controls-button {
+  @apply w-8 h-8 !bg-muted !border-border !border-b;
+}
+
+.react-flow__controls-button:hover {
+  @apply !bg-accent;
+}
+
+.react-flow__controls-button svg {
+  fill: hsl(var(--foreground)) !important;
+  stroke: hsl(var(--foreground)) !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* MiniMap */
+.react-flow__minimap {
+  @apply rounded-lg shadow-lg border border-border overflow-hidden;
+}
+
+.react-flow__minimap svg {
+  @apply rounded-lg;
 }
 
 ::-webkit-scrollbar {

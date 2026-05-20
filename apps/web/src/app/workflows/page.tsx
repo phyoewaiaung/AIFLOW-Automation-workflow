@@ -9,7 +9,8 @@ import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreVertical, Play, Edit, Trash2, Power, Loader2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Plus, Search, Play, Edit, Trash2, Power, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function WorkflowsPage() {
@@ -19,6 +20,7 @@ export default function WorkflowsPage() {
   const orgId = organization?.id || '';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows(orgId);
   const deleteWorkflow = useDeleteWorkflow();
@@ -37,9 +39,8 @@ export default function WorkflowsPage() {
   }, [isLoading, token, router]);
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this workflow?')) {
-      await deleteWorkflow.mutateAsync(id);
-    }
+    await deleteWorkflow.mutateAsync(id);
+    setDeleteTarget(null);
   };
 
   const handleToggleActive = async (id: string, active: boolean) => {
@@ -51,7 +52,8 @@ export default function WorkflowsPage() {
   };
 
   const handleRun = async (id: string) => {
-    await triggerExecution.mutateAsync({ workflowId: id });
+    const result = await triggerExecution.mutateAsync({ workflowId: id });
+    router.push(`/executions/${result.id}`);
   };
 
   const filteredWorkflows = (workflows || []).filter((w: any) =>
@@ -169,7 +171,7 @@ export default function WorkflowsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(workflow.id)}
+                        onClick={() => setDeleteTarget(workflow.id)}
                       >
                         <Trash2 className="w-3 h-3 text-destructive" />
                       </Button>
@@ -181,6 +183,17 @@ export default function WorkflowsPage() {
           )}
         </div>
       </main>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Workflow"
+        message="Are you sure you want to delete this workflow? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

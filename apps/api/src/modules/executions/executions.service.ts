@@ -120,6 +120,10 @@ export class ExecutionsService {
       throw new NotFoundException('Workflow not found');
     }
 
+    if (!workflow.active) {
+      throw new ForbiddenException('Workflow is not active');
+    }
+
     await this.checkAccess(workflow.organizationId, userId);
 
     const execution = await this.prisma.execution.create({
@@ -209,6 +213,37 @@ export class ExecutionsService {
         }),
       },
     });
+  }
+
+  async startExecutionFromWebhook(workflowId: string, triggerData: any) {
+    const workflow = await this.prisma.workflow.findUnique({
+      where: { id: workflowId },
+    });
+
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found');
+    }
+
+    if (!workflow.active) {
+      throw new ForbiddenException('Workflow is not active');
+    }
+
+    const execution = await this.prisma.execution.create({
+      data: {
+        workflowId,
+        organizationId: workflow.organizationId,
+        triggerData,
+        status: 'PENDING',
+        createdById: workflow.createdById,
+      },
+    });
+
+    await this.executionQueue.add('execute-workflow', {
+      executionId: execution.id,
+      workflowId: execution.workflowId,
+    });
+
+    return execution;
   }
 
   async addLog(executionId: string, data: {

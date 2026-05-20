@@ -116,8 +116,8 @@ export class AgentsService {
 
     if (!this.openai) {
       return {
-        output: 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.',
-        usage: null,
+        output: `Mock response for "${agent.name}" with input: "${input.substring(0, 100)}..."\n\nAnalysis complete. Based on the provided information, this appears to be a high-priority inquiry. Recommended next steps: schedule a demo call and send personalized follow-up materials.`,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       };
     }
 

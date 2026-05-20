@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Run: npx prisma db seed
+
 enum MembershipRole {
   OWNER
   ADMIN

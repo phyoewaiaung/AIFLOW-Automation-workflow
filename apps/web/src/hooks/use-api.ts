@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workflows as workflowApi, executions, analytics, agents } from '@/lib/api';
+import { useToastStore } from '@/store/use-toast-store';
+
+function onMutationError(err: Error) {
+  useToastStore.getState().addToast(err.message, 'error');
+}
 
 export function useWorkflows(organizationId: string) {
   return useQuery({
@@ -25,6 +30,7 @@ export function useCreateWorkflow() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workflows', variables.organizationId] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -37,6 +43,7 @@ export function useUpdateWorkflow() {
       queryClient.invalidateQueries({ queryKey: ['workflow', data.id] });
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -47,6 +54,7 @@ export function useDeleteWorkflow() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -54,9 +62,16 @@ export function useActivateWorkflow() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => workflowApi.activate(id),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', data.id] });
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['workflows'] });
+      queryClient.setQueriesData({ queryKey: ['workflows'] }, (old: any) =>
+        old?.map((w: any) => (w.id === id ? { ...w, active: true } : w))
+      );
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    },
+    onError: onMutationError,
   });
 }
 
@@ -64,9 +79,16 @@ export function useDeactivateWorkflow() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => workflowApi.deactivate(id),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', data.id] });
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['workflows'] });
+      queryClient.setQueriesData({ queryKey: ['workflows'] }, (old: any) =>
+        old?.map((w: any) => (w.id === id ? { ...w, active: false } : w))
+      );
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    },
+    onError: onMutationError,
   });
 }
 
@@ -78,6 +100,7 @@ export function useSaveWorkflowNodes() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['workflow', data.id] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -113,6 +136,7 @@ export function useTriggerExecution() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['executions'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -123,6 +147,7 @@ export function useCancelExecution() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['executions'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -133,6 +158,7 @@ export function useRetryExecution() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['executions'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -159,6 +185,7 @@ export function useCreateAgent() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['agents', variables.organizationId] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -170,6 +197,7 @@ export function useUpdateAgent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
     },
+    onError: onMutationError,
   });
 }
 
@@ -180,5 +208,6 @@ export function useDeleteAgent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
     },
+    onError: onMutationError,
   });
 }

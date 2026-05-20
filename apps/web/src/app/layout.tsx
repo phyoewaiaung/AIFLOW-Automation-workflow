@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { ToastContainer } from '@/components/ui/toast';
 
 const inter = Inter({ subsets: ['latin'] });
 const geistMono = Geist_Mono({ subsets: ['latin'] });
@@ -19,7 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} ${geistMono.className}`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <ToastContainer />
+        </Providers>
       </body>
     </html>
   );

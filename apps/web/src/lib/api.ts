@@ -8,8 +8,10 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       if (token) {
         localStorage.setItem('auth_token', token);
+        document.cookie = `auth_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       } else {
         localStorage.removeItem('auth_token');
+        document.cookie = 'auth_token=; path=/; max-age=0';
       }
     }
   }
@@ -139,6 +141,14 @@ export const integrations = {
 export const users = {
   update: (id: string, data: { name?: string; avatar?: string }) =>
     api.patch<any>(`/users/${id}`, data),
+};
+
+export const apiKeys = {
+  list: (organizationId: string) =>
+    api.get<any[]>(`/api-keys?organizationId=${organizationId}`),
+  create: (data: { name: string }) =>
+    api.post<any>('/api-keys', data),
+  delete: (id: string) => api.delete<any>(`/api-keys/${id}`),
 };
 
 export const analytics = {

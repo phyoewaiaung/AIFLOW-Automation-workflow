@@ -31,6 +31,13 @@ export const config = {
     timeout: parseInt(process.env.EXECUTION_TIMEOUT || '300000'),
     maxRetries: parseInt(process.env.EXECUTION_MAX_RETRIES || '3'),
   },
+  email: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || 'noreply@autoflow.ai',
+  },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),

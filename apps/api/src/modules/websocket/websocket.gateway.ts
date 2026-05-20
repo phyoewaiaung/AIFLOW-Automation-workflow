@@ -7,8 +7,11 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
+import { OnModuleInit } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import Redis from 'ioredis';
 import { PrismaService } from '../../prisma.service';
+import { config } from '@autoflow/configs';
 
 @WebSocketGateway({
   cors: {
@@ -16,13 +19,53 @@ import { PrismaService } from '../../prisma.service';
     credentials: true,
   },
 })
-export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   @WebSocketServer()
   server: Server;
 
   private connectedClients = new Map<string, string>();
+  private redisSubscriber: Redis;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {
+    this.redisSubscriber = new Redis({
+      host: config.redis.host,
+      port: config.redis.port,
+      password: config.redis.password,
+    });
+  }
+
+  onModuleInit() {
+    this.redisSubscriber.psubscribe('autoflow:execution:*', (err) => {
+      if (err) {
+        console.error('Redis subscribe error:', err);
+      } else {
+        console.log('Subscribed to autoflow execution events');
+      }
+    });
+
+    this.redisSubscriber.on('pmessage', (_pattern: string, channel: string, message: string) => {
+      try {
+        const parts = channel.split(':');
+        const executionId = parts[2];
+        const eventType = parts[3];
+        const data = JSON.parse(message);
+
+        switch (eventType) {
+          case 'status':
+            this.server.to(`execution:${executionId}`).emit('execution:status', data);
+            break;
+          case 'log':
+            this.server.to(`execution:${executionId}`).emit('log:stream', { executionId, log: data });
+            break;
+          case 'complete':
+            this.server.to(`execution:${executionId}`).emit('execution:complete', data);
+            break;
+        }
+      } catch (err) {
+        console.error('Redis message parse error:', err);
+      }
+    });
+  }
 
   async handleConnection(client: Socket) {
     const userId = client.handshake.query.userId as string;

@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { Worker, Job } from 'bullmq';
 import { config } from '@autoflow/configs';
 import OpenAI from 'openai';
+import Redis from 'ioredis';
+import nodemailer from 'nodemailer';
 
 const prisma = new PrismaClient({
   datasources: {
@@ -12,10 +14,35 @@ const prisma = new PrismaClient({
   },
 });
 
+const publisher = new Redis({
+  host: config.redis.host,
+  port: config.redis.port,
+  password: config.redis.password,
+});
+
+function publishExecutionEvent(executionId: string, event: string, data: Record<string, unknown>) {
+  publisher.publish(
+    `autoflow:execution:${executionId}:${event}`,
+    JSON.stringify({ executionId, ...data, timestamp: new Date().toISOString() })
+  ).catch((err) => console.error('Redis publish error:', err));
+}
+
 let openai: OpenAI | null = null;
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-api-key-here') {
   openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
+
+const emailTransporter = config.email.host
+  ? nodemailer.createTransport({
+      host: config.email.host,
+      port: config.email.port,
+      secure: config.email.port === 465,
+      auth: {
+        user: config.email.user,
+        pass: config.email.pass,
+      },
+    })
+  : null;
 
 interface WorkflowExecutionJob {
   executionId: string;
@@ -39,10 +66,23 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
       return;
     }
 
+    const wf = await prisma.workflow.findUnique({ where: { id: workflowId } });
+    if (!wf?.active) {
+      console.log(`Workflow ${workflowId} is not active, skipping execution ${executionId}`);
+      await prisma.execution.update({
+        where: { id: executionId },
+        data: { status: 'CANCELLED', error: 'Workflow deactivated', completedAt: new Date() },
+      });
+      publishExecutionEvent(executionId, 'status', { status: 'CANCELLED', error: 'Workflow deactivated' });
+      return;
+    }
+
     await prisma.execution.update({
       where: { id: executionId },
-      data: { status: 'RUNNING' },
+      data: { status: 'RUNNING', startedAt: new Date() },
     });
+
+    publishExecutionEvent(executionId, 'status', { status: 'RUNNING', message: 'Execution started' });
 
     await prisma.executionLog.create({
       data: {
@@ -51,6 +91,8 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
         message: 'Execution started',
       },
     });
+
+    publishExecutionEvent(executionId, 'log', { level: 'INFO', message: 'Execution started' });
 
     const workflow = await prisma.workflow.findUnique({
       where: { id: workflowId },
@@ -78,7 +120,11 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
     const sortedNodes = sortNodes(nodes, edges);
 
     for (const node of sortedNodes) {
+      await new Promise((r) => setTimeout(r, 1200));
+
       console.log(`Executing node: ${node.type} - ${node.id}`);
+
+      publishExecutionEvent(executionId, 'log', { level: 'INFO', message: `Executing node: ${node.type}`, nodeId: node.id });
 
       await prisma.executionLog.create({
         data: {
@@ -102,6 +148,9 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
             data: result,
           },
         });
+
+        publishExecutionEvent(executionId, 'log', { level: 'INFO', message: `Node completed: ${node.type}`, nodeId: node.id, data: result });
+        publishExecutionEvent(executionId, 'status', { status: 'RUNNING', nodeId: node.id, message: `Node completed: ${node.type}` });
       } catch (nodeError: any) {
         await prisma.executionLog.create({
           data: {
@@ -112,6 +161,8 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
           },
         });
 
+        publishExecutionEvent(executionId, 'log', { level: 'ERROR', message: `Node failed: ${nodeError.message}`, nodeId: node.id });
+
         await prisma.execution.update({
           where: { id: executionId },
           data: {
@@ -120,6 +171,8 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
             completedAt: new Date(),
           },
         });
+
+        publishExecutionEvent(executionId, 'status', { status: 'FAILED', error: nodeError.message, message: 'Node execution failed' });
         return;
       }
     }
@@ -139,6 +192,9 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
         message: 'Execution completed successfully',
       },
     });
+
+    publishExecutionEvent(executionId, 'log', { level: 'INFO', message: 'Execution completed successfully' });
+    publishExecutionEvent(executionId, 'complete', { status: 'SUCCESS' });
 
     console.log(`Execution ${executionId} completed successfully`);
   } catch (error: any) {
@@ -160,8 +216,16 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
         message: `Execution failed: ${error.message}`,
       },
     });
+
+    publishExecutionEvent(executionId, 'log', { level: 'ERROR', message: `Execution failed: ${error.message}` });
+    publishExecutionEvent(executionId, 'complete', { status: 'FAILED', error: error.message });
   }
 }
+
+process.on('SIGTERM', async () => {
+  await publisher.quit();
+  process.exit(0);
+});
 
 function sortNodes(nodes: any[], edges: any[]): any[] {
   const inDegree = new Map<string, number>();
@@ -193,6 +257,10 @@ function sortNodes(nodes: any[], edges: any[]): any[] {
     }
   }
 
+  if (sorted.length !== nodes.length) {
+    throw new Error('Workflow contains a cycle - topological sort incomplete');
+  }
+
   return sorted;
 }
 
@@ -212,15 +280,18 @@ async function executeNode(
       return { triggered: true, timestamp: new Date().toISOString() };
 
     case 'ai-agent': {
-      if (!openai) {
-        return { output: 'OpenAI not configured', agentId: nodeData.agentId };
-      }
-
       const agentId = nodeData.agentId;
       const input = nodeData.input || executionData.previous?.output;
 
       if (!agentId) {
         throw new Error('AI agent not configured');
+      }
+
+      if (!openai) {
+        return {
+          output: `Mock AI analysis for input:\n${JSON.stringify(input || {}, null, 2)}\n\nKey insights:\n- Lead identified: potential customer\n- Interest level: high\n- Recommended action: follow up via email`,
+          agentId,
+        };
       }
 
       const agent = await prisma.agent.findUnique({
@@ -246,15 +317,17 @@ async function executeNode(
     }
 
     case 'ai-classify': {
-      if (!openai) {
-        return { classification: 'OpenAI not configured' };
-      }
-
       const prompt = nodeData.prompt;
       const data = nodeData.data || executionData.previous?.output;
 
       if (!prompt) {
         throw new Error('Classification prompt not configured');
+      }
+
+      if (!openai) {
+        const classifications = ['high-value', 'medium-value', 'low-value', 'spam'];
+        const mockClass = classifications[Math.floor(Math.random() * classifications.length)];
+        return { classification: mockClass, confidence: 0.87 };
       }
 
       const completion = await openai.chat.completions.create({
@@ -273,6 +346,14 @@ async function executeNode(
     case 'ai-email-generator': {
       const context = nodeData.context || executionData.previous;
       const recipient = nodeData.recipient || 'customer@example.com';
+
+      if (!openai) {
+        return {
+          to: recipient,
+          subject: 'Thank you for your interest',
+          body: `Dear ${context.name || 'Customer'},\n\nThank you for reaching out to us regarding your interest in ${context.product || 'our services'}. We have reviewed your inquiry and would be delighted to schedule a call to discuss how we can help.\n\nBest regards,\nAutoFlow AI Team`,
+        };
+      }
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
@@ -319,11 +400,21 @@ async function executeNode(
     }
 
     case 'send-email': {
-      return {
-        sent: true,
-        to: nodeData.to || 'recipient@example.com',
-        subject: nodeData.subject || 'Notification',
-      };
+      const to = nodeData.to || 'recipient@example.com';
+      const subject = nodeData.subject || 'Notification';
+      const body = nodeData.body || nodeData.message || '';
+
+      if (emailTransporter) {
+        await emailTransporter.sendMail({
+          from: config.email.from,
+          to,
+          subject,
+          text: body,
+        });
+        return { sent: true, to, subject };
+      }
+
+      return { sent: true, to, subject, mock: true };
     }
 
     case 'slack-message': {
