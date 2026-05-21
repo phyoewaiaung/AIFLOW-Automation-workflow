@@ -38,3 +38,13 @@ export function unsubscribeFromExecution(executionId: string) {
   const s = getSocket();
   s.emit('execution:unsubscribe', { executionId });
 }
+
+export function subscribeToNotifications(userId: string) {
+  const s = getSocket();
+  s.emit('notification:subscribe', { userId });
+}
+
+export function unsubscribeFromNotifications(userId: string) {
+  const s = getSocket();
+  s.emit('notification:unsubscribe', { userId });
+}

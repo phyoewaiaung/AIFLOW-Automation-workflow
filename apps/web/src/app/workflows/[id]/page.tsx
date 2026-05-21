@@ -8,7 +8,7 @@ import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { WorkflowCanvas, WorkflowCanvasHandle } from '@/components/workflow/workflow-canvas';
 import { useWorkflow, useSaveWorkflowNodes, useAgents, useTriggerExecution } from '@/hooks/use-api';
-import { Save, Play, ArrowLeft, Loader2 } from 'lucide-react';
+import { Save, Play, ArrowLeft, Loader2, Link2, Check } from 'lucide-react';
 
 export default function WorkflowEditPage() {
   const router = useRouter();
@@ -103,6 +103,27 @@ export default function WorkflowEditPage() {
               className="bg-transparent border-none text-lg font-semibold focus:outline-none focus:ring-0"
             />
             <span className="text-sm text-muted-foreground">Draft</span>
+          </div>
+
+          <div className="hidden md:flex items-center gap-2">
+            {workflow?.webhookUrl && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 border border-border rounded-md">
+                <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <code className="text-xs text-muted-foreground truncate max-w-[280px]">
+                  {workflow.webhookUrl}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(workflow.webhookUrl);
+                    addToast('Webhook URL copied', 'success');
+                  }}
+                  className="p-1 hover:bg-muted rounded transition-colors"
+                  title="Copy webhook URL"
+                >
+                  <Check className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

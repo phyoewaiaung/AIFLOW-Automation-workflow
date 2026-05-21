@@ -45,7 +45,24 @@ async function main() {
       name: 'Sales Assistant',
       description: 'AI agent that analyzes leads and generates personalized sales emails',
       model: 'gpt-4',
+      provider: 'openai',
       instructions: 'You are a sales assistant. Analyze the lead information and generate a personalized outreach email.',
+      tools: [],
+      organizationId: org.id,
+      createdById: user.id,
+    },
+  });
+
+  await prisma.agent.upsert({
+    where: { id: 'demo-groq-agent' },
+    update: {},
+    create: {
+      id: 'demo-groq-agent',
+      name: 'Groq Assistant',
+      description: 'Fast AI agent powered by Groq (Llama 3)',
+      model: 'llama-3.3-70b-versatile',
+      provider: 'groq',
+      instructions: 'You are a helpful assistant. Provide clear, concise responses.',
       tools: [],
       organizationId: org.id,
       createdById: user.id,

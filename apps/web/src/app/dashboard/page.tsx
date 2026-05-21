@@ -16,6 +16,7 @@ import {
   Clock,
   Zap,
   Loader2,
+  Eye,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -24,7 +25,7 @@ export default function DashboardPage() {
   const orgId = organization?.id || '';
 
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics(orgId);
-  const { data: executionsData, isLoading: executionsLoading } = useExecutions(orgId, {}, 5);
+  const { data: executionsData, isLoading: executionsLoading } = useExecutions(orgId, { limit: 3 });
 
   useEffect(() => {
     checkAuth();
@@ -181,7 +182,16 @@ export default function DashboardPage() {
                               </p>
                             </div>
                           </div>
-                          {getStatusBadge(exec.status)}
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(exec.status)}
+                            <button
+                              onClick={() => router.push(`/executions/${exec.id}`)}
+                              className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                              title="View execution"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

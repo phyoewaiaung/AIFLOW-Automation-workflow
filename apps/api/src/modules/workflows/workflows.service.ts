@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { config } from '@autoflow/configs';
 
 interface WorkflowNodeData {
   type: string;
@@ -15,6 +16,8 @@ interface TriggerConfig {
   type: string;
   [key: string]: unknown;
 }
+
+const apiBase = config.web.apiUrl.replace(/\/+$/, '');
 
 @Injectable()
 export class WorkflowsService {
@@ -32,10 +35,17 @@ export class WorkflowsService {
     return membership;
   }
 
+  private addWebhookUrl(workflow: any) {
+    return {
+      ...workflow,
+      webhookUrl: `${apiBase}/api/workflows/webhook/${workflow.id}`,
+    };
+  }
+
   async findAll(organizationId: string, userId: string) {
     await this.checkAccess(organizationId, userId);
 
-    return this.prisma.workflow.findMany({
+    const workflows = await this.prisma.workflow.findMany({
       where: { organizationId },
       include: {
         nodes: true,
@@ -46,6 +56,8 @@ export class WorkflowsService {
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    return workflows.map((w) => this.addWebhookUrl(w));
   }
 
   async findById(id: string, userId: string) {
@@ -64,7 +76,7 @@ export class WorkflowsService {
 
     await this.checkAccess(workflow.organizationId, userId);
 
-    return workflow;
+    return this.addWebhookUrl(workflow);
   }
 
   async create(organizationId: string, userId: string, data: {
@@ -74,7 +86,7 @@ export class WorkflowsService {
   }) {
     await this.checkAccess(organizationId, userId);
 
-    return this.prisma.workflow.create({
+    const created = await this.prisma.workflow.create({
       data: {
         name: data.name,
         description: data.description,
@@ -88,6 +100,8 @@ export class WorkflowsService {
         edges: true,
       },
     });
+
+    return this.addWebhookUrl(created);
   }
 
   async update(
@@ -109,7 +123,7 @@ export class WorkflowsService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    return this.prisma.workflow.update({
+    const updated = await this.prisma.workflow.update({
       where: { id },
       data: {
         ...data,
@@ -121,6 +135,8 @@ export class WorkflowsService {
         edges: true,
       },
     });
+
+    return this.addWebhookUrl(updated);
   }
 
   async delete(id: string, userId: string) {
@@ -153,10 +169,12 @@ export class WorkflowsService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    return this.prisma.workflow.update({
+    const activated = await this.prisma.workflow.update({
       where: { id },
       data: { active: true },
     });
+
+    return this.addWebhookUrl(activated);
   }
 
   async deactivate(id: string, userId: string) {
@@ -169,10 +187,12 @@ export class WorkflowsService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    return this.prisma.workflow.update({
+    const deactivated = await this.prisma.workflow.update({
       where: { id },
       data: { active: false },
     });
+
+    return this.addWebhookUrl(deactivated);
   }
 
   async addNode(

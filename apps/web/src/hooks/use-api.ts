@@ -104,7 +104,7 @@ export function useSaveWorkflowNodes() {
   });
 }
 
-export function useExecutions(organizationId: string, filters?: { workflowId?: string; status?: string }) {
+export function useExecutions(organizationId: string, filters?: { workflowId?: string; status?: string; limit?: number }) {
   return useQuery({
     queryKey: ['executions', organizationId, filters],
     queryFn: () => executions.list(organizationId, filters),

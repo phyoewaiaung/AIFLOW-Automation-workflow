@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IntegrationsService } from './integrations.service';
-import { JwtAuthGuard } from '../../common/guards/jwt.guard';
+import { AuthGuard } from '../../common/guards/auth-combined.guard';
 
 @ApiTags('Integrations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(AuthGuard)
 @Controller('integrations')
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
@@ -64,4 +64,17 @@ export class IntegrationsController {
   async test(@Param('id') id: string, @Request() req: any) {
     return this.integrationsService.testConnection(id, req.user.id);
   }
+
+  @Post(':id/slack-channels')
+  @ApiOperation({ summary: 'Fetch Slack channel list' })
+  async fetchSlackChannels(@Param('id') id: string, @Request() req: any) {
+    return this.integrationsService.fetchSlackChannels(id, req.user.id);
+  }
+
+  @Post(':id/discord-channels')
+  @ApiOperation({ summary: 'Fetch Discord channels list' })
+  async fetchDiscordChannels(@Param('id') id: string, @Request() req: any) {
+    return this.integrationsService.fetchDiscordChannels(id, req.user.id);
+  }
+
 }

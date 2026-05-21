@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, Ban, RotateCw, ExternalLink, Play, Loader2 } from 'lucide-react';
 import { connectSocket, subscribeToExecution, unsubscribeFromExecution } from '@/lib/socket';
+import { ExecutionTimeline } from '@/components/execution/execution-timeline';
 
 const statusConfig: Record<string, { label: string; variant: any; icon: any; color: string }> = {
   SUCCESS: { label: 'Success', variant: 'success', icon: CheckCircle, color: 'text-green-500' },
@@ -198,43 +199,8 @@ export default function ExecutionDetailPage() {
               )}
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
-                    Execution Logs
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!logs || logs.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">No logs available</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {logs.map((log: any, i: number) => (
-                        <div
-                          key={i}
-                          className="flex gap-3 p-2 text-sm rounded-md hover:bg-muted/50 font-mono"
-                        >
-                          <span className="text-muted-foreground shrink-0 w-16">
-                            {new Date(log.timestamp).toLocaleTimeString()}
-                          </span>
-                          <span
-                            className={`shrink-0 w-16 uppercase text-xs font-bold ${
-                              log.level === 'ERROR' ? 'text-red-500' :
-                              log.level === 'WARN' ? 'text-yellow-500' : 'text-blue-500'
-                            }`}
-                          >
-                            {log.level}
-                          </span>
-                          {log.nodeId && (
-                            <span className="text-muted-foreground shrink-0 truncate max-w-[120px]">
-                              [{log.nodeId.slice(0, 8)}]
-                            </span>
-                          )}
-                          <span className="text-foreground">{log.message}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <CardContent className="p-0">
+                  <ExecutionTimeline execution={execution} logs={logs} />
                 </CardContent>
               </Card>
             </>

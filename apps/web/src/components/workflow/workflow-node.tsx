@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
-import { Zap, Clock, Bot, Mail, MessageSquare, Globe, Code, GitBranch } from 'lucide-react';
+import { Zap, Clock, Bot, Mail, MessageSquare, Globe, Code, GitBranch, Gamepad2 } from 'lucide-react';
 
 interface CustomNodeData {
   label: string;
@@ -17,6 +17,8 @@ const nodeIcons: Record<string, React.ElementType> = {
   http: Globe,
   email: Mail,
   slack: MessageSquare,
+  'discord-message': Gamepad2,
+  discord: Gamepad2,
   condition: GitBranch,
 };
 
@@ -34,6 +36,8 @@ const nodeStyles: Record<string, { border: string; badge: string; iconColor: str
   email: { border: 'border-cyan-500/50', badge: 'bg-cyan-500', iconColor: 'text-cyan-400' },
   'slack-message': { border: 'border-pink-500/50', badge: 'bg-pink-500', iconColor: 'text-pink-400' },
   slack: { border: 'border-pink-500/50', badge: 'bg-pink-500', iconColor: 'text-pink-400' },
+  'discord-message': { border: 'border-indigo-500/50', badge: 'bg-indigo-500', iconColor: 'text-indigo-400' },
+  discord: { border: 'border-indigo-500/50', badge: 'bg-indigo-500', iconColor: 'text-indigo-400' },
   condition: { border: 'border-yellow-500/50', badge: 'bg-yellow-500', iconColor: 'text-yellow-400' },
 };
 

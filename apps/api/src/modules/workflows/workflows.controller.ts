@@ -13,12 +13,12 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionsService } from '../executions/executions.service';
-import { JwtAuthGuard } from '../../common/guards/jwt.guard';
+import { AuthGuard } from '../../common/guards/auth-combined.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Workflows')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(AuthGuard)
 @Controller('workflows')
 export class WorkflowsController {
   constructor(

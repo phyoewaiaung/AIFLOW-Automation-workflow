@@ -15,6 +15,10 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { WorkflowNode } from './workflow-node';
+import { Link2, Check, RefreshCw, Loader2 } from 'lucide-react';
+import { useToastStore } from '@/store/use-toast-store';
+import { integrations as integrationsApi } from '@/lib/api';
+import { useAuthStore } from '@/store/use-auth-store';
 
 interface AgentOption {
   id: string;
@@ -101,6 +105,9 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
           extraData.channel = '#general';
           extraData.message = '';
         }
+        if (type === 'discord-message') {
+          extraData.message = '';
+        }
         if (type === 'condition') {
           extraData.condition = 'always-true';
         }
@@ -117,6 +124,10 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
       },
       [setNodes]
     );
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const webhookUrl = workflowId ? `${apiUrl}/api/workflows/webhook/${workflowId}` : null;
+    const addToast = useToastStore((s) => s.addToast);
 
     const selectedNodeData = nodes.find((n) => n.id === selectedNode);
 
@@ -203,6 +214,12 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
               >
                 Slack Message
               </button>
+              <button
+                onClick={() => addNode('discord-message', 'Discord Message')}
+                className="w-full p-2 text-left text-sm bg-muted/50 hover:bg-muted rounded-md transition-colors"
+              >
+                Discord Message
+              </button>
             </div>
             <div className="space-y-2 mt-4">
               <p className="text-xs text-muted-foreground uppercase mb-2">Logic</p>
@@ -229,6 +246,30 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
                   />
                 </div>
 
+                {selectedNodeData.data.type === 'trigger-webhook' && webhookUrl && (
+                  <div key={`${selectedNode}-webhook`} className="space-y-2">
+                    <label className="text-sm text-muted-foreground">Webhook URL</label>
+                    <div className="flex items-center gap-1.5 p-2 bg-muted border border-border rounded-md">
+                      <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <code className="text-xs text-muted-foreground truncate flex-1">
+                        {webhookUrl}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(webhookUrl);
+                          addToast('Webhook URL copied', 'success');
+                        }}
+                        className="p-1 hover:bg-muted/80 rounded transition-colors shrink-0"
+                      >
+                        <Check className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Send a POST request to this URL to trigger the workflow. The request body is passed as trigger data.
+                    </p>
+                  </div>
+                )}
+
                 {selectedNodeData.data.type === 'ai-agent' && (
                   <div key={`${selectedNode}-ai-agent`}>
                     <label className="text-sm text-muted-foreground">AI Agent</label>
@@ -242,6 +283,14 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
                     </select>
+                    <label className="text-sm text-muted-foreground mt-3 block">Input / Prompt</label>
+                    <textarea
+                      className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+                      rows={3}
+                      placeholder='Leave blank to use previous node output, or type a custom prompt here'
+                      defaultValue={selectedNodeData.data.input as string || ''}
+                      onChange={(e) => updateNodeData(selectedNode, { input: e.target.value })}
+                    />
                   </div>
                 )}
 
@@ -316,30 +365,34 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
                         onChange={(e) => updateNodeData(selectedNode, { subject: e.target.value })}
                       />
                     </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground">Body</label>
+                      <textarea
+                        className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+                        rows={4}
+                        defaultValue={selectedNodeData.data.body as string || ''}
+                        onChange={(e) => updateNodeData(selectedNode, { body: e.target.value })}
+                      />
+                    </div>
                   </div>
                 )}
 
                 {selectedNodeData.data.type === 'slack-message' && (
-                  <div key={`${selectedNode}-slack`}>
-                    <div>
-                      <label className="text-sm text-muted-foreground">Channel</label>
-                      <input
-                        type="text"
-                        className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
-                        defaultValue={selectedNodeData.data.channel as string || '#general'}
-                        onChange={(e) => updateNodeData(selectedNode, { channel: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground">Message</label>
-                      <textarea
-                        className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
-                        rows={3}
-                        defaultValue={selectedNodeData.data.message as string || ''}
-                        onChange={(e) => updateNodeData(selectedNode, { message: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                  <SlackChannelConfig
+                    key={`${selectedNode}-slack`}
+                    selectedNode={selectedNode}
+                    selectedNodeData={selectedNodeData}
+                    updateNodeData={updateNodeData}
+                  />
+                )}
+
+                {selectedNodeData.data.type === 'discord-message' && (
+                  <DiscordChannelConfig
+                    key={`${selectedNode}-discord`}
+                    selectedNode={selectedNode}
+                    selectedNodeData={selectedNodeData}
+                    updateNodeData={updateNodeData}
+                  />
                 )}
 
                 {selectedNodeData.data.type === 'condition' && (
@@ -374,3 +427,194 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
     );
   }
 );
+
+function SlackChannelConfig({
+  selectedNode,
+  selectedNodeData,
+  updateNodeData,
+}: {
+  selectedNode: string;
+  selectedNodeData: Node;
+  updateNodeData: (id: string, data: Record<string, any>) => void;
+}) {
+  const [channels, setChannels] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const organization = useAuthStore((s) => s.organization);
+
+  const loadChannels = useCallback(async () => {
+    if (!organization) return;
+    setLoading(true);
+    try {
+      const integrations = await integrationsApi.list(organization.id);
+      const slack = integrations.find((i: any) => i.type === 'SLACK');
+      if (!slack) {
+        useToastStore.getState().addToast('Connect Slack in Integrations page first', 'error');
+        return;
+      }
+      const chs = await integrationsApi.fetchSlackChannels(slack.id);
+      setChannels(chs);
+    } catch (err: any) {
+      useToastStore.getState().addToast(err?.message || 'Failed to load channels', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [organization]);
+
+  const currentChannel = (selectedNodeData.data.channel as string) || '#general';
+
+  return (
+    <div key={`${selectedNode}-slack`}>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm text-muted-foreground">Channel</label>
+          <button
+            onClick={loadChannels}
+            disabled={loading}
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+          >
+            {loading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+            Load channels
+          </button>
+        </div>
+        {channels ? (
+          <select
+            className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+            value={channels.find((ch) => `#${ch.name}` === currentChannel || ch.id === currentChannel) ? currentChannel : ''}
+            onChange={(e) => updateNodeData(selectedNode, { channel: e.target.value })}
+          >
+            <option value="" disabled>Select a channel</option>
+            {channels.map((ch: any) => (
+              <option key={ch.id} value={`#${ch.name}`}>
+                # {ch.name}{ch.isPrivate ? ' (private)' : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+            defaultValue={currentChannel}
+            onChange={(e) => updateNodeData(selectedNode, { channel: e.target.value })}
+          />
+        )}
+      </div>
+      <div className="mt-3">
+        <label className="text-sm text-muted-foreground">Message</label>
+        <textarea
+          className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+          rows={3}
+          defaultValue={selectedNodeData.data.message as string || ''}
+          onChange={(e) => updateNodeData(selectedNode, { message: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DiscordChannelConfig({
+  selectedNode,
+  selectedNodeData,
+  updateNodeData,
+}: {
+  selectedNode: string;
+  selectedNodeData: Node;
+  updateNodeData: (id: string, data: Record<string, any>) => void;
+}) {
+  const [channels, setChannels] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const organization = useAuthStore((s) => s.organization);
+
+  const loadChannels = useCallback(async () => {
+    if (!organization) return;
+    setLoading(true);
+    try {
+      const integrations = await integrationsApi.list(organization.id);
+      const discord = integrations.find((i: any) => i.type === 'DISCORD');
+      if (!discord) {
+        useToastStore.getState().addToast('Connect Discord in Integrations page first', 'error');
+        return;
+      }
+      const chs = await integrationsApi.fetchDiscordChannels(discord.id);
+      setChannels(chs);
+    } catch (err: any) {
+      useToastStore.getState().addToast(err?.message || 'Failed to load channels', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [organization]);
+
+  const currentChannel = (selectedNodeData.data.channel as string) || '';
+
+  const grouped = useMemo(() => {
+    if (!channels) return null;
+    const groups: Record<string, any[]> = {};
+    for (const ch of channels) {
+      if (!groups[ch.guildName]) groups[ch.guildName] = [];
+      groups[ch.guildName].push(ch);
+    }
+    return groups;
+  }, [channels]);
+
+  return (
+    <div key={`${selectedNode}-discord`}>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm text-muted-foreground">Channel</label>
+          <button
+            onClick={loadChannels}
+            disabled={loading}
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+          >
+            {loading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+            Load channels
+          </button>
+        </div>
+        {channels && grouped ? (
+          <select
+            className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+            value={channels.find((ch) => ch.id === currentChannel || ch.name === currentChannel) ? currentChannel : ''}
+            onChange={(e) => updateNodeData(selectedNode, { channel: e.target.value })}
+          >
+            <option value="" disabled>Select a channel</option>
+            {Object.entries(grouped).map(([guildName, chs]) => (
+              <optgroup key={guildName} label={guildName}>
+                {chs.map((ch: any) => (
+                  <option key={ch.id} value={ch.id}>
+                    # {ch.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+            placeholder="Channel ID (click Load channels above)"
+            defaultValue={currentChannel}
+            onChange={(e) => updateNodeData(selectedNode, { channel: e.target.value })}
+          />
+        )}
+      </div>
+      <div className="mt-3">
+        <label className="text-sm text-muted-foreground">Message</label>
+        <textarea
+          className="w-full mt-1 p-2 bg-muted border border-border rounded-md text-sm"
+          rows={3}
+          defaultValue={selectedNodeData.data.message as string || ''}
+          onChange={(e) => updateNodeData(selectedNode, { message: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}

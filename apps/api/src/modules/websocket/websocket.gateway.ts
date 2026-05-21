@@ -43,6 +43,10 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       }
     });
 
+    this.redisSubscriber.subscribe('autoflow:notification', (err) => {
+      if (err) console.error('Redis notif subscribe error:', err);
+    });
+
     this.redisSubscriber.on('pmessage', (_pattern: string, channel: string, message: string) => {
       try {
         const parts = channel.split(':');
@@ -63,6 +67,17 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
         }
       } catch (err) {
         console.error('Redis message parse error:', err);
+      }
+    });
+
+    this.redisSubscriber.on('message', (_channel: string, message: string) => {
+      try {
+        const noti = JSON.parse(message);
+        if (noti.userId) {
+          this.server.to(`user:${noti.userId}`).emit('notification:new', noti);
+        }
+      } catch (err) {
+        console.error('Redis notif parse error:', err);
       }
     });
   }
@@ -96,6 +111,24 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() data: { executionId: string }
   ) {
     client.leave(`execution:${data.executionId}`);
+    return { success: true };
+  }
+
+  @SubscribeMessage('notification:subscribe')
+  handleNotificationSubscribe(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: string }
+  ) {
+    client.join(`user:${data.userId}`);
+    return { success: true };
+  }
+
+  @SubscribeMessage('notification:unsubscribe')
+  handleNotificationUnsubscribe(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: string }
+  ) {
+    client.leave(`user:${data.userId}`);
     return { success: true };
   }
 
@@ -135,15 +168,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     });
   }
 
-  emitNotification(userId: string, data: {
-    type: string;
-    title: string;
-    message: string;
-    data?: any;
-  }) {
-    this.server.emit(`notification:${userId}`, {
-      type: 'notification:new',
-      ...data,
-    });
+  emitNotification(userId: string, notification: any) {
+    this.server.to(`user:${userId}`).emit('notification:new', notification);
   }
 }

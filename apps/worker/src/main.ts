@@ -20,6 +20,11 @@ const publisher = new Redis({
   password: config.redis.password,
 });
 
+function publishRedis(channel: string, data: Record<string, unknown>) {
+  publisher.publish(channel, JSON.stringify({ ...data, timestamp: new Date().toISOString() }))
+    .catch((err) => console.error('Redis publish error:', err));
+}
+
 function publishExecutionEvent(executionId: string, event: string, data: Record<string, unknown>) {
   publisher.publish(
     `autoflow:execution:${executionId}:${event}`,
@@ -30,6 +35,11 @@ function publishExecutionEvent(executionId: string, event: string, data: Record<
 let openai: OpenAI | null = null;
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-api-key-here') {
   openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+let groq: OpenAI | null = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your-groq-api-key-here') {
+  groq = new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: 'https://api.groq.com/openai/v1' });
 }
 
 const emailTransporter = config.email.host
@@ -59,6 +69,7 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
   const { executionId, workflowId } = job.data;
   console.log(`Processing execution ${executionId} for workflow ${workflowId}`);
 
+  let wf: any = null;
   try {
     const existing = await prisma.execution.findUnique({ where: { id: executionId } });
     if (existing?.status === 'CANCELLED') {
@@ -66,7 +77,7 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
       return;
     }
 
-    const wf = await prisma.workflow.findUnique({ where: { id: workflowId } });
+    wf = await prisma.workflow.findUnique({ where: { id: workflowId } });
     if (!wf?.active) {
       console.log(`Workflow ${workflowId} is not active, skipping execution ${executionId}`);
       await prisma.execution.update({
@@ -122,22 +133,27 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
     for (const node of sortedNodes) {
       await new Promise((r) => setTimeout(r, 1200));
 
+      const startedAt = new Date();
       console.log(`Executing node: ${node.type} - ${node.id}`);
 
       publishExecutionEvent(executionId, 'log', { level: 'INFO', message: `Executing node: ${node.type}`, nodeId: node.id });
 
-      await prisma.executionLog.create({
+      const startLog = await prisma.executionLog.create({
         data: {
           executionId,
           nodeId: node.id,
           level: 'INFO',
           message: `Executing node: ${node.type}`,
+          startedAt,
         },
       });
 
       try {
-        const result = await executeNode(node, executionData, prisma, openai);
+        const result = await executeNode(node, executionData, prisma, openai, groq, edges, nodeMap, wf.organizationId);
         executionData[node.id] = result;
+
+        const completedAt = new Date();
+        const duration = completedAt.getTime() - startedAt.getTime();
 
         await prisma.executionLog.create({
           data: {
@@ -146,22 +162,42 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
             level: 'INFO',
             message: `Node completed: ${node.type}`,
             data: result,
+            startedAt,
+            completedAt,
+            duration,
           },
         });
 
-        publishExecutionEvent(executionId, 'log', { level: 'INFO', message: `Node completed: ${node.type}`, nodeId: node.id, data: result });
-        publishExecutionEvent(executionId, 'status', { status: 'RUNNING', nodeId: node.id, message: `Node completed: ${node.type}` });
+        await prisma.executionLog.update({
+          where: { id: startLog.id },
+          data: { completedAt, duration },
+        });
+
+        const logPayload = { level: 'INFO', message: `Node completed: ${node.type}`, nodeId: node.id, data: result, duration };
+        publishExecutionEvent(executionId, 'log', logPayload);
+        publishExecutionEvent(executionId, 'status', { status: 'RUNNING', nodeId: node.id, message: `Node completed: ${node.type}`, duration });
       } catch (nodeError: any) {
+        const completedAt = new Date();
+        const duration = completedAt.getTime() - startedAt.getTime();
+
         await prisma.executionLog.create({
           data: {
             executionId,
             nodeId: node.id,
             level: 'ERROR',
             message: `Node failed: ${nodeError.message}`,
+            startedAt,
+            completedAt,
+            duration,
           },
         });
 
-        publishExecutionEvent(executionId, 'log', { level: 'ERROR', message: `Node failed: ${nodeError.message}`, nodeId: node.id });
+        await prisma.executionLog.update({
+          where: { id: startLog.id },
+          data: { completedAt, duration },
+        });
+
+        publishExecutionEvent(executionId, 'log', { level: 'ERROR', message: `Node failed: ${nodeError.message}`, nodeId: node.id, duration });
 
         await prisma.execution.update({
           where: { id: executionId },
@@ -193,6 +229,19 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
       },
     });
 
+    const notification = await prisma.notification.create({
+      data: {
+        userId: wf.createdById,
+        organizationId: wf.organizationId,
+        title: 'Execution completed',
+        message: `Workflow "${wf.name}" completed successfully`,
+        type: 'SUCCESS',
+        link: `/executions/${executionId}`,
+      },
+    });
+
+    publisher.publish('autoflow:notification', JSON.stringify(notification)).catch(() => {});
+
     publishExecutionEvent(executionId, 'log', { level: 'INFO', message: 'Execution completed successfully' });
     publishExecutionEvent(executionId, 'complete', { status: 'SUCCESS' });
 
@@ -216,6 +265,21 @@ async function executeWorkflow(job: Job<WorkflowExecutionJob>) {
         message: `Execution failed: ${error.message}`,
       },
     });
+
+    const failNoti = await prisma.notification.create({
+      data: {
+        userId: wf?.createdById || '',
+        organizationId: wf?.organizationId || '',
+        title: 'Execution failed',
+        message: `Workflow "${wf?.name || 'Unknown'}" failed: ${error.message}`,
+        type: 'ERROR',
+        link: `/executions/${executionId}`,
+      },
+    }).catch(() => null);
+
+    if (failNoti) {
+      publisher.publish('autoflow:notification', JSON.stringify(failNoti)).catch(() => {});
+    }
 
     publishExecutionEvent(executionId, 'log', { level: 'ERROR', message: `Execution failed: ${error.message}` });
     publishExecutionEvent(executionId, 'complete', { status: 'FAILED', error: error.message });
@@ -268,7 +332,11 @@ async function executeNode(
   node: any,
   executionData: Record<string, any>,
   prisma: PrismaClient,
-  openai: OpenAI | null
+  openai: OpenAI | null,
+  groq: OpenAI | null,
+  edges?: any[],
+  nodeMap?: Map<string, any>,
+  organizationId?: string
 ): Promise<any> {
   const nodeData = node.data as Record<string, any>;
 
@@ -287,13 +355,6 @@ async function executeNode(
         throw new Error('AI agent not configured');
       }
 
-      if (!openai) {
-        return {
-          output: `Mock AI analysis for input:\n${JSON.stringify(input || {}, null, 2)}\n\nKey insights:\n- Lead identified: potential customer\n- Interest level: high\n- Recommended action: follow up via email`,
-          agentId,
-        };
-      }
-
       const agent = await prisma.agent.findUnique({
         where: { id: agentId },
       });
@@ -302,7 +363,17 @@ async function executeNode(
         throw new Error('Agent not found');
       }
 
-      const completion = await openai.chat.completions.create({
+      const provider = agent.provider || 'openai';
+      const client = provider === 'groq' ? groq : openai;
+
+      if (!client) {
+        return {
+          output: `Mock AI analysis for input:\n${JSON.stringify(input || {}, null, 2)}\n\nKey insights:\n- Lead identified: potential customer\n- Interest level: high\n- Recommended action: follow up via email`,
+          agentId,
+        };
+      }
+
+      const completion = await client.chat.completions.create({
         model: agent.model,
         messages: [
           { role: 'system', content: agent.instructions },
@@ -400,29 +471,141 @@ async function executeNode(
     }
 
     case 'send-email': {
-      const to = nodeData.to || 'recipient@example.com';
-      const subject = nodeData.subject || 'Notification';
-      const body = nodeData.body || nodeData.message || '';
+      let prevOutput: any = {};
+      if (edges && nodeMap) {
+        const incoming = edges.find((e) => e.targetId === node.id);
+        if (incoming && executionData[incoming.sourceId]) {
+          prevOutput = executionData[incoming.sourceId];
+        }
+      }
 
-      if (emailTransporter) {
-        await emailTransporter.sendMail({
-          from: config.email.from,
-          to,
-          subject,
-          text: body,
-        });
+      const to = nodeData.to || prevOutput.to || prevOutput.recipient || 'recipient@example.com';
+      const subject = nodeData.subject || prevOutput.subject || 'Notification';
+      const body = nodeData.body || prevOutput.body || prevOutput.message || prevOutput.output || '';
+
+      let transporter = emailTransporter;
+      let fromAddr = config.email.from;
+
+      if (organizationId) {
+        try {
+          const gmailIntegration = await prisma.integration.findFirst({
+            where: { organizationId, type: 'GMAIL', active: true },
+          });
+
+          const smtpConfig = gmailIntegration?.config as any;
+          if (smtpConfig?.smtpHost && smtpConfig?.smtpUser && smtpConfig?.smtpPass) {
+            transporter = nodemailer.createTransport({
+              host: smtpConfig.smtpHost,
+              port: parseInt(smtpConfig.smtpPort || '587', 10),
+              secure: parseInt(smtpConfig.smtpPort || '587', 10) === 465,
+              auth: { user: smtpConfig.smtpUser, pass: smtpConfig.smtpPass },
+            });
+            fromAddr = smtpConfig.smtpFrom || smtpConfig.smtpUser;
+          }
+        } catch (err: any) {
+          console.error('Gmail integration error:', err);
+        }
+      }
+
+      if (transporter) {
+        await transporter.sendMail({ from: fromAddr, to, subject, text: body });
         return { sent: true, to, subject };
       }
 
-      return { sent: true, to, subject, mock: true };
+      return { sent: true, to, subject, mock: true, body };
     }
 
     case 'slack-message': {
-      return {
-        sent: true,
-        channel: nodeData.channel || '#general',
-        message: nodeData.message || '',
-      };
+      let prevOutput: any = {};
+      if (edges && nodeMap) {
+        const incoming = edges.find((e) => e.targetId === node.id);
+        if (incoming && executionData[incoming.sourceId]) {
+          prevOutput = executionData[incoming.sourceId];
+        }
+      }
+
+      const channel = nodeData.channel || prevOutput.channel || '#general';
+      const message = nodeData.message || prevOutput.message || prevOutput.output || '';
+
+      if (organizationId) {
+        try {
+          const slackIntegration = await prisma.integration.findFirst({
+            where: { organizationId, type: 'SLACK', active: true },
+          });
+
+          const botToken = (slackIntegration?.config as any)?.botToken;
+          if (botToken) {
+            const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${botToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ channel, text: message }),
+            });
+
+            const slackData: any = await slackRes.json();
+            if (slackData.ok) {
+              return { sent: true, channel, message, ts: slackData.ts };
+            }
+            throw new Error(`Slack API error: ${slackData.error}`);
+          }
+        } catch (err: any) {
+          console.error('Slack integration error:', err);
+          return { sent: false, channel, message, error: err.message, mock: true };
+        }
+      }
+
+      return { sent: true, channel, message, mock: true };
+    }
+
+    case 'discord-message': {
+      let prevOutput: any = {};
+      if (edges && nodeMap) {
+        const incoming = edges.find((e) => e.targetId === node.id);
+        if (incoming && executionData[incoming.sourceId]) {
+          prevOutput = executionData[incoming.sourceId];
+        }
+      }
+
+      const channelId = nodeData.channel || prevOutput.channel || '';
+      const message = nodeData.message || prevOutput.message || prevOutput.output || '';
+
+      if (!channelId) {
+        throw new Error('Discord channel not configured');
+      }
+
+      if (organizationId) {
+        try {
+          const discordIntegration = await prisma.integration.findFirst({
+            where: { organizationId, type: 'DISCORD', active: true },
+          });
+
+          const botToken = (discordIntegration?.config as any)?.botToken;
+          if (botToken) {
+            const discordRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bot ${botToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ content: message }),
+            });
+
+            if (discordRes.ok) {
+              const discordData: any = await discordRes.json();
+              return { sent: true, channelId, message, discordId: discordData.id };
+            }
+            const discordError = await discordRes.text();
+            throw new Error(`Discord API error: ${discordError}`);
+          }
+        } catch (err: any) {
+          console.error('Discord integration error:', err);
+          return { sent: false, channelId, message, error: err.message, mock: true };
+        }
+      }
+
+      return { sent: true, channelId, message, mock: true };
     }
 
     case 'condition': {

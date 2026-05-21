@@ -42,33 +42,35 @@ enum IntegrationType {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
+  id            String         @id @default(cuid())
+  email         String         @unique
   name          String?
   avatar        String?
   password      String
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   memberships   Membership[]
   workflows     Workflow[]
   executions    Execution[]
   agents        Agent[]
   apiKeys       ApiKey[]
+  notifications Notification[]
 }
 
 model Organization {
-  id            String       @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String
-  slug          String       @unique
+  slug          String         @unique
   logo          String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   memberships   Membership[]
   workflows     Workflow[]
   integrations  Integration[]
   executions    Execution[]
   apiKeys       ApiKey[]
   agents        Agent[]
+  notifications Notification[]
 }
 
 model Membership {
@@ -147,6 +149,9 @@ model ExecutionLog {
   message      String
   data         Json?
   timestamp    DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  duration     Int?
   execution    Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 }
 
@@ -155,6 +160,7 @@ model Agent {
   name           String
   description    String?
   model          String   @default("gpt-4")
+  provider       String   @default("openai")
   instructions   String
   tools          Json     @default("[]")
   organizationId String
@@ -188,4 +194,25 @@ model ApiKey {
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  userId         String
+  organizationId String
+  title          String
+  message        String
+  type           NotificationType @default(INFO)
+  read           Boolean          @default(false)
+  link           String?
+  createdAt      DateTime         @default(now())
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }

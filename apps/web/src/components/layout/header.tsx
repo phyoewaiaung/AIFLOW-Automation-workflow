@@ -1,16 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Bell, Search, Plus, LogOut, Settings, User, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/use-auth-store';
+import { useNotificationStore } from '@/store/use-notification-store';
+import { connectSocket } from '@/lib/socket';
 import { Button } from '@/components/ui/button';
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, organization, logout } = useAuthStore();
+  const unread = useNotificationStore((s) => s.unread);
+  const load = useNotificationStore((s) => s.load);
+  const increment = useNotificationStore((s) => s.increment);
+  const decrement = useNotificationStore((s) => s.decrement);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  useEffect(() => {
+    if (organization?.id) load(organization.id);
+  }, [organization?.id, load]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = connectSocket(user.id);
+    socket.emit('notification:subscribe', { userId: user.id });
+    socket.on('notification:new', () => increment());
+    socket.on('notification:read', () => decrement());
+    return () => {
+      socket.emit('notification:unsubscribe', { userId: user.id });
+      socket.off('notification:new');
+      socket.off('notification:read');
+    };
+  }, [user?.id, increment, decrement]);
 
   const handleLogout = () => {
     logout();
@@ -47,6 +70,11 @@ export function Header() {
             onClick={() => router.push('/notifications')}
           >
             <Bell className="w-5 h-5" />
+            {unread > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 flex items-center justify-center bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px]">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
           </button>
 
           <div className="relative">

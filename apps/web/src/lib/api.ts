@@ -104,10 +104,11 @@ export const workflows = {
 };
 
 export const executions = {
-  list: (organizationId: string, filters?: { workflowId?: string; status?: string }) => {
+  list: (organizationId: string, filters?: { workflowId?: string; status?: string; limit?: number }) => {
     const params = new URLSearchParams({ organizationId });
     if (filters?.workflowId) params.append('workflowId', filters.workflowId);
     if (filters?.status) params.append('status', filters.status);
+    if (filters?.limit) params.append('limit', String(filters.limit));
     return api.get<any>(`/executions?${params}`);
   },
   get: (id: string) => api.get<any>(`/executions/${id}`),
@@ -136,11 +137,25 @@ export const integrations = {
   create: (data: any) => api.post<any>('/integrations', data),
   update: (id: string, data: any) => api.patch<any>(`/integrations/${id}`, data),
   delete: (id: string) => api.delete<any>(`/integrations/${id}`),
+  fetchSlackChannels: (id: string) =>
+    api.post<any[]>(`/integrations/${id}/slack-channels`),
+  fetchDiscordChannels: (id: string) =>
+    api.post<any[]>(`/integrations/${id}/discord-channels`),
 };
 
 export const users = {
   update: (id: string, data: { name?: string; avatar?: string }) =>
     api.patch<any>(`/users/${id}`, data),
+};
+
+export const notifications = {
+  list: (organizationId: string) =>
+    api.get<any[]>(`/notifications?organizationId=${organizationId}`),
+  create: (data: { title: string; message: string; type?: string; link?: string }) =>
+    api.post<any>('/notifications', data),
+  markRead: (id: string) => api.patch<any>(`/notifications/${id}/read`, {}),
+  markAllRead: (organizationId: string) =>
+    api.post<any>(`/notifications/mark-all-read?organizationId=${organizationId}`),
 };
 
 export const apiKeys = {

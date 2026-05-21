@@ -5,11 +5,18 @@ import { OpenAI } from 'openai';
 @Injectable()
 export class AgentsService {
   private openai: OpenAI | null = null;
+  private groq: OpenAI | null = null;
 
   constructor(private prisma: PrismaService) {
     if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-api-key-here') {
       this.openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+    if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your-groq-api-key-here') {
+      this.groq = new OpenAI({
+        apiKey: process.env.GROQ_API_KEY,
+        baseURL: 'https://api.groq.com/openai/v1',
       });
     }
   }
@@ -53,6 +60,7 @@ export class AgentsService {
     name: string;
     description?: string;
     model?: string;
+    provider?: string;
     instructions: string;
     tools?: string[];
   }) {
@@ -63,6 +71,7 @@ export class AgentsService {
         name: data.name,
         description: data.description,
         model: data.model || 'gpt-4',
+        provider: data.provider || 'openai',
         instructions: data.instructions,
         tools: data.tools as any || [],
         organizationId,
@@ -114,37 +123,47 @@ export class AgentsService {
   async execute(id: string, userId: string, input: string) {
     const agent = await this.findById(id, userId);
 
-    if (!this.openai) {
+    const provider = agent.provider || 'openai';
+    const client = provider === 'groq' ? this.groq : this.openai;
+
+    if (!client) {
       return {
         output: `Mock response for "${agent.name}" with input: "${input.substring(0, 100)}..."\n\nAnalysis complete. Based on the provided information, this appears to be a high-priority inquiry. Recommended next steps: schedule a demo call and send personalized follow-up materials.`,
         usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       };
     }
 
-    const completion = await this.openai.chat.completions.create({
-      model: agent.model,
-      messages: [
-        {
-          role: 'system',
-          content: agent.instructions,
-        },
-        {
-          role: 'user',
-          content: input,
-        },
-      ],
-      temperature: 0.7,
-    });
+    try {
+      const completion = await client.chat.completions.create({
+        model: agent.model,
+        messages: [
+          {
+            role: 'system',
+            content: agent.instructions,
+          },
+          {
+            role: 'user',
+            content: input,
+          },
+        ],
+        temperature: 0.7,
+      });
 
-    const output = completion.choices[0]?.message?.content || '';
-    const usage = completion.usage
-      ? {
-          promptTokens: completion.usage.prompt_tokens,
-          completionTokens: completion.usage.completion_tokens,
-          totalTokens: completion.usage.total_tokens,
-        }
-      : null;
+      const output = completion.choices[0]?.message?.content || '';
+      const usage = completion.usage
+        ? {
+            promptTokens: completion.usage.prompt_tokens,
+            completionTokens: completion.usage.completion_tokens,
+            totalTokens: completion.usage.total_tokens,
+          }
+        : null;
 
-    return { output, usage };
+      return { output, usage };
+    } catch {
+      return {
+        output: `Mock response for "${agent.name}" with input: "${input.substring(0, 100)}..." (API error, using fallback)\n\nAnalysis complete. Based on the provided information, this appears to be a high-priority inquiry. Recommended next steps: schedule a demo call and send personalized follow-up materials.`,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      };
+    }
   }
 }
