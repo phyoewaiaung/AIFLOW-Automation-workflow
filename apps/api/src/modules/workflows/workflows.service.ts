@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { config } from '@autoflow/configs';
 
@@ -300,6 +300,47 @@ export class WorkflowsService {
     return { success: true };
   }
 
+  private detectCycle(nodes: { id: string }[], edges: { sourceId: string; targetId: string }[]) {
+    const inDegree = new Map<string, number>();
+    const adjacency = new Map<string, string[]>();
+
+    nodes.forEach((n) => {
+      inDegree.set(n.id, 0);
+      adjacency.set(n.id, []);
+    });
+
+    edges.forEach((e) => {
+      inDegree.set(e.targetId, (inDegree.get(e.targetId) || 0) + 1);
+      adjacency.get(e.sourceId)?.push(e.targetId);
+    });
+
+    const queue = nodes.filter((n) => inDegree.get(n.id) === 0).map((n) => n.id);
+    let sortedCount = 0;
+
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      sortedCount++;
+
+      for (const neighbor of adjacency.get(nodeId) || []) {
+        inDegree.set(neighbor, (inDegree.get(neighbor) || 1) - 1);
+        if (inDegree.get(neighbor) === 0) {
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    if (sortedCount !== nodes.length) {
+      const cyclicNodes = nodes.filter((n) => (inDegree.get(n.id) || 0) > 0).map((n) => n.id);
+      const orphanEdges = edges.filter((e) => !nodes.some((n) => n.id === e.sourceId) || !nodes.some((n) => n.id === e.targetId));
+      if (orphanEdges.length > 0) {
+        throw new BadRequestException(
+          `Workflow has ${orphanEdges.length} edge(s) referencing deleted nodes (e.g. ${orphanEdges[0].sourceId} -> ${orphanEdges[0].targetId}). Delete those edges and try again.`
+        );
+      }
+      throw new BadRequestException(`Workflow contains a cycle involving nodes: ${cyclicNodes.join(', ')}`);
+    }
+  }
+
   async saveNodesAndEdges(
     workflowId: string,
     userId: string,
@@ -322,6 +363,8 @@ export class WorkflowsService {
     }
   ) {
     const workflow = await this.findById(workflowId, userId);
+
+    this.detectCycle(data.nodes, data.edges);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.workflowNode.deleteMany({ where: { workflowId } });

@@ -45,27 +45,32 @@ export default function WorkflowEditPage() {
   const handleSave = useCallback(async () => {
     if (!canvasRef.current || isNew) return;
     const { nodes, edges } = canvasRef.current.getData();
-    await saveWorkflow.mutateAsync({
-      id: workflowId,
-      data: {
-        nodes: nodes.map((n: any) => ({
-          id: n.id,
-          type: n.data?.type || n.type,
-          positionX: n.position.x,
-          positionY: n.position.y,
-          data: n.data,
-        })),
-        edges: edges.map((e: any) => ({
-          id: e.id,
-          sourceId: e.source,
-          targetId: e.target,
-          sourceHandle: e.sourceHandle,
-          targetHandle: e.targetHandle,
-        })),
-      },
-    });
-    addToast('Workflow saved', 'success');
-    router.push('/workflows');
+    try {
+      await saveWorkflow.mutateAsync({
+        id: workflowId,
+        data: {
+          nodes: nodes.map((n: any) => ({
+            id: n.id,
+            type: n.data?.type || n.type,
+            positionX: n.position.x,
+            positionY: n.position.y,
+            data: n.data,
+          })),
+          edges: edges.map((e: any) => ({
+            id: e.id,
+            sourceId: e.source,
+            targetId: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
+          })),
+        },
+      });
+      addToast('Workflow saved', 'success');
+      router.push('/workflows');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || err?.message || 'Failed to save workflow';
+      addToast(message, 'error');
+    }
   }, [workflowId, isNew, saveWorkflow, addToast, router]);
 
   const handleTest = useCallback(async () => {

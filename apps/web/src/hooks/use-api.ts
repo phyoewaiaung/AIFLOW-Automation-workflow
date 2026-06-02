@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workflows as workflowApi, executions, analytics, agents } from '@/lib/api';
+import { workflows as workflowApi, executions, analytics, agents, leads } from '@/lib/api';
 import { useToastStore } from '@/store/use-toast-store';
 
 function onMutationError(err: Error) {
@@ -207,6 +207,93 @@ export function useDeleteAgent() {
     mutationFn: (id: string) => agents.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
+    },
+    onError: onMutationError,
+  });
+}
+
+export function useLeads(organizationId: string, status?: string) {
+  return useQuery({
+    queryKey: ['leads', organizationId, status],
+    queryFn: () => leads.list(organizationId, status),
+    enabled: !!organizationId,
+  });
+}
+
+export function useLead(id: string) {
+  return useQuery({
+    queryKey: ['lead', id],
+    queryFn: () => leads.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useLeadSetupStatus(organizationId: string) {
+  return useQuery({
+    queryKey: ['lead-setup-status', organizationId],
+    queryFn: () => leads.setupStatus(organizationId),
+    enabled: !!organizationId,
+  });
+}
+
+export function useCreateLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => leads.create(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leads', variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: onMutationError,
+  });
+}
+
+export function useTestLeadWebhook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ organizationId, data }: { organizationId: string; data: any }) =>
+      leads.testWebhook(organizationId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leads', variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: onMutationError,
+  });
+}
+
+export function useSendLeadEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leads.sendEmail(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: onMutationError,
+  });
+}
+
+export function useUpdateLeadContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => leads.updateContact(id, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: onMutationError,
+  });
+}
+
+export function useUpdateLeadDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, generatedEmail }: { id: string; generatedEmail: string }) =>
+      leads.updateDraft(id, { generatedEmail }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: onMutationError,
   });

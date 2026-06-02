@@ -30,6 +30,14 @@ enum LogLevel {
   DEBUG
 }
 
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  CONTACTED
+  RESPONDED
+  DISQUALIFIED
+}
+
 enum IntegrationType {
   GMAIL
   SLACK
@@ -71,6 +79,7 @@ model Organization {
   apiKeys       ApiKey[]
   agents        Agent[]
   notifications Notification[]
+  leads         Lead[]
 }
 
 model Membership {
@@ -101,6 +110,7 @@ model Workflow {
   executions     Execution[]
   nodes          WorkflowNode[]
   edges          WorkflowEdge[]
+  leads          Lead[]
 }
 
 model WorkflowNode {
@@ -139,6 +149,7 @@ model Execution {
   createdBy      User          @relation(fields: [createdById], references: [id])
   createdById    String
   logs           ExecutionLog[]
+  leads          Lead[]
 }
 
 model ExecutionLog {
@@ -215,4 +226,36 @@ model Notification {
   createdAt      DateTime         @default(now())
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Lead {
+  id              String     @id @default(cuid())
+  organizationId  String
+  workflowId      String?
+  executionId     String?
+  name            String?
+  email           String?
+  phone           String?
+  company         String?
+  website         String?
+  message         String?
+  source          String?
+  score           Int?
+  status          LeadStatus @default(NEW)
+  qualification   String?
+  aiSummary       String?
+  suggestedAction String?
+  generatedEmail  String?
+  emailSentAt     DateTime?
+  lastActivityAt  DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow        Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  execution       Execution?   @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([organizationId, score])
 }

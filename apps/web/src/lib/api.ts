@@ -158,6 +158,23 @@ export const notifications = {
     api.post<any>(`/notifications/mark-all-read?organizationId=${organizationId}`),
 };
 
+export const leads = {
+  list: (organizationId: string, status?: string) => {
+    const params = new URLSearchParams({ organizationId });
+    if (status) params.append('status', status);
+    return api.get<any[]>(`/leads?${params}`);
+  },
+  setupStatus: (organizationId: string) =>
+    api.get<any>(`/leads/setup/status?organizationId=${organizationId}`),
+  get: (id: string) => api.get<any>(`/leads/${id}`),
+  create: (data: any) => api.post<any>('/leads', data),
+  testWebhook: (organizationId: string, data: any) =>
+    api.post<any>(`/leads/webhook/${organizationId}`, data),
+  updateContact: (id: string, data: any) => api.patch<any>(`/leads/${id}/contact`, data),
+  updateDraft: (id: string, data: { generatedEmail: string }) => api.patch<any>(`/leads/${id}/draft`, data),
+  sendEmail: (id: string) => api.post<any>(`/leads/${id}/send-email`),
+};
+
 export const apiKeys = {
   list: (organizationId: string) =>
     api.get<any[]>(`/api-keys?organizationId=${organizationId}`),

@@ -8,6 +8,7 @@ import {
   PlayCircle,
   Bot,
   Puzzle,
+  UserRound,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +19,7 @@ import { useState } from 'react';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/leads', icon: UserRound, label: 'Leads' },
   { href: '/workflows', icon: Workflow, label: 'Workflows' },
   { href: '/executions', icon: PlayCircle, label: 'Executions' },
   { href: '/agents', icon: Bot, label: 'AI Agents' },

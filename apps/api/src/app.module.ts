@@ -13,6 +13,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { LeadsModule } from './modules/leads/leads.module';
 import { PrismaService } from './prisma.service';
 import { config } from '@autoflow/configs';
 
@@ -34,6 +35,7 @@ import { config } from '@autoflow/configs';
     WebsocketModule,
     ApiKeysModule,
     NotificationsModule,
+    LeadsModule,
   ],
   providers: [
     PrismaService,

@@ -57,7 +57,7 @@ export function Header() {
         <div className="flex items-center gap-2 md:gap-4">
           <Button 
             size="sm" 
-            variant="primary" 
+            variant="default"
             onClick={() => router.push('/workflows/new')}
             className="text-xs md:text-sm"
           >

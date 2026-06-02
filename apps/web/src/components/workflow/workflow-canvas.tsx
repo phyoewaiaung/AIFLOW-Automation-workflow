@@ -413,6 +413,7 @@ export const WorkflowCanvas = forwardRef<WorkflowCanvasHandle, WorkflowCanvasPro
                 <button
                   onClick={() => {
                     setNodes((nds) => nds.filter((n) => n.id !== selectedNode));
+                    setEdges((eds) => eds.filter((e) => e.source !== selectedNode && e.target !== selectedNode));
                     setSelectedNode(null);
                   }}
                   className="w-full p-2 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors"
